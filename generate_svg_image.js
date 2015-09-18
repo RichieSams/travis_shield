@@ -50,7 +50,7 @@ function CreateSVG(res, label, buildStatus) {
 
 	res.contentType('image/svg+xml');
 	res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-	
+
 	var reqTime = new Date();
 	var date = (reqTime).toGMTString();
 	res.setHeader('Expires', date);  // Proxies, GitHub, see #221.
@@ -61,7 +61,7 @@ function CreateSVG(res, label, buildStatus) {
 
 function GenerateSVGImage(res, username, repo, label, os, compiler) {
 	if (!label) {
-		label = 'Build';
+		label = 'build';
 	}
 
 	var options = {
