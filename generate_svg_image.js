@@ -101,14 +101,18 @@ function GenerateSVGImage(res, username, repo, label, os, compiler) {
 			var jobIndex = -1;
 			if (os || compiler) {
 				for (var i = 0; i < jobs.length; i++) {
-					var osCorrect = true;
-					if (os && jobs[i].config.os != os) {
-						osCorrect = false;
+					var osCorrect = false;
+					if (os && jobs[i].config.os == os) {
+						osCorrect = true;
 					}
 
-					var compilerCorrect = true;
-					if (compiler && jobs[i].config.compiler != compiler) {
-						compilerCorrect = false;
+					var compilerCorrect = false;
+					var myRegexp = /MY_CC=(.*?) /g;
+					var match = myRegexp.exec(jobs[i].config.env);
+					if (match !== null) {
+						if (match[1] == compiler) {
+							compilerCorrect = true;
+						}
 					}
 
 					if (osCorrect && compilerCorrect) {
