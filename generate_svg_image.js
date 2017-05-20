@@ -56,7 +56,7 @@ function CreateSVG(res, label, buildStatus) {
 	res.setHeader('Expires', date);  // Proxies, GitHub, see #221.
 	res.setHeader('Date', date);
 
-	res.render('shield_template.svg.jade', data);
+	res.render('shield_template.svg.pug', data);
 }
 
 function GenerateSVGImage(res, username, repo, label, os, compiler) {
