@@ -8,7 +8,7 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/:username/:repo', function(req, res, next) {
-	GenerateSVGImage(res, req.params.username, req.params.repo, req.query.label, req.query.os, req.query.compiler);
+	GenerateSVGImage(res, req.params.username, req.params.repo, req.query.label, req.query.os, req.query.compiler, req.query.branch);
 });
 
 module.exports = router;

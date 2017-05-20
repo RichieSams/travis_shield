@@ -59,14 +59,16 @@ function CreateSVG(res, label, buildStatus) {
 	res.render('shield_template.svg.pug', data);
 }
 
-function GenerateSVGImage(res, username, repo, label, os, compiler) {
+function GenerateSVGImage(res, username, repo, label, os, compiler, branch) {
 	if (!label) {
 		label = 'build';
 	}
 
+	// Look up the repo
+	// Default to the master branch if not specified
 	var options = {
-		url: "https://api.travis-ci.org/repos/" + username + "/" + repo,
-		headers: {'Accept': 'application/vnd.travis-ci.2+json'}
+		url: 'https://api.travis-ci.org/repos/'+ username + '/' + repo + '/branches/' + (branch ? branch : 'master'),
+        headers: {'Accept': 'application/vnd.travis-ci.2+json'}
 	};
 
 	request(options, function (error, response, body) {
@@ -75,12 +77,21 @@ function GenerateSVGImage(res, username, repo, label, os, compiler) {
 			return;
 		}
 
-		var buildId = JSON.parse(body).repo.last_build_id;
+		var jsonBody = JSON.parse(body);
+
+		// If they don't specify an os / compiler combo, just return the status of the whole build
+		if (!os && !compiler) {
+			CreateSVG(res, label, jsonBody.branch.state.replace(/ed$/, "ing"));
+			return;
+		}
+
+		var buildId = jsonBody.branch.id;
 		if(!buildId){
 			CreateSVG(res, label, 'repo not found');
 			return;
 		}
 
+		// Look up the build
 		var options2 = {
 			url: "https://api.travis-ci.org/builds/" + buildId,
 			headers: {'Accept': 'application/vnd.travis-ci.2+json'}
@@ -99,35 +110,41 @@ function GenerateSVGImage(res, username, repo, label, os, compiler) {
 			}
 
 			var jobIndex = -1;
-			if (os || compiler) {
-				for (var i = 0; i < jobs.length; i++) {
-					var osCorrect = false;
-					if (os && jobs[i].config.os == os) {
-						osCorrect = true;
-					}
 
-					var compilerCorrect = false;
-					var myRegexp = /MY_CC=(.*?) /g;
-					var match = myRegexp.exec(jobs[i].config.env);
-					if (match !== null) {
-						if (match[1] == compiler) {
-							compilerCorrect = true;
-						}
-					}
-
-					if (osCorrect && compilerCorrect) {
-						jobIndex = i;
-						break;
-					}
+			// Try to find the os / compiler combo specified
+			for (var i = 0; i < jobs.length; i++) {
+				// If they don't specify an OS, dont' check for it
+				var osCorrect = os ? false : true;
+				if (os && jobs[i].config.os == os) {
+					osCorrect = true;
 				}
 
-				if (jobIndex == -1) {
-					CreateSVG(res, label, 'os/compiler build not found');
-					return;
+				// If they don't specify a compiler, don't check for it
+				var compilerCorrect = compiler ? false : true;
+				if (compiler) {
+					// Travis CI API only gives the basic compiler (IE. gcc / clang)
+					// It doesn't give the detailed version
+					// For that, we rely on the environment variables passed in
+                    var myRegexp = /MY_CC=(.*?) /g;
+                    var match = myRegexp.exec(jobs[i].config.env);
+                    if (match !== null) {
+                        if (match[1] == compiler) {
+                            compilerCorrect = true;
+                        }
+                    }
+                }
+
+				if (osCorrect && compilerCorrect) {
+					jobIndex = i;
+					break;
 				}
-			} else {
-				jobIndex = 0;
 			}
+
+			if (jobIndex == -1) {
+				CreateSVG(res, label, 'os/compiler build not found');
+				return;
+			}
+
 
 			var status = jobs[jobIndex].state;
 			CreateSVG(res, label, status.replace(/ed$/, "ing"));
