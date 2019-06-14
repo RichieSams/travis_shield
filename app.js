@@ -1,4 +1,5 @@
 var express = require('express');
+var morgan = require('morgan')
 var path = require('path');
 var bodyParser = require('body-parser');
 
@@ -13,6 +14,8 @@ app.set('view engine', 'pug');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(morgan('tiny'))
 
 app.use('/', routes);
 
