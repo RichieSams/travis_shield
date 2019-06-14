@@ -59,15 +59,27 @@ function CreateSVG(res, label, buildStatus) {
 	res.render('shield_template.svg.pug', data);
 }
 
-function GenerateSVGImage(res, username, repo, label, os, compiler, branch) {
-	if (!label) {
-		label = 'build';
+function isEmptyObject(obj) {
+	return !Object.keys(obj).length;
+}
+
+function GenerateSVGImage(res, username, repo, queries) {
+	label = 'build'
+	if (queries.label) {
+		label = queries.label
+		delete queries.label
+	}
+
+	branch = 'master'
+	if (queries.branch) {
+		branch = queries.branch
+		delete queries.branch
 	}
 
 	// Look up the repo
 	// Default to the master branch if not specified
 	var options = {
-		url: 'https://api.travis-ci.org/repos/'+ username + '/' + repo + '/branches/' + (branch ? branch : 'master'),
+		url: 'https://api.travis-ci.org/repos/'+ username + '/' + repo + '/branches/' + branch,
         headers: {'Accept': 'application/vnd.travis-ci.2+json'}
 	};
 
@@ -79,8 +91,8 @@ function GenerateSVGImage(res, username, repo, label, os, compiler, branch) {
 
 		var jsonBody = JSON.parse(body);
 
-		// If they don't specify an os / compiler combo, just return the status of the whole build
-		if (!os && !compiler) {
+		// If they don't specify any queries, just return the status of the whole build
+		if (isEmptyObject(queries)) {
 			CreateSVG(res, label, jsonBody.branch.state.replace(/ed$/, "ing"));
 			return;
 		}
@@ -111,37 +123,46 @@ function GenerateSVGImage(res, username, repo, label, os, compiler, branch) {
 
 			var jobIndex = -1;
 
-			// Try to find the os / compiler combo specified
+			// Try to find the query combo specified
 			for (var i = 0; i < jobs.length; i++) {
-				// If they don't specify an OS, dont' check for it
-				var osCorrect = os ? false : true;
-				if (os && jobs[i].config.os == os) {
-					osCorrect = true;
+				var allCorrect = true
+
+				var envVarList = jobs[i].config.env.split(' ')
+				var envVars = new Object()
+				for (var j = 0; j < envVarList.length; j++) {
+					var splitList = envVarList[j].split('=')
+					envVars[splitList[0].toLowerCase()] = splitList[1].toLowerCase()
 				}
 
-				// If they don't specify a compiler, don't check for it
-				var compilerCorrect = compiler ? false : true;
-				if (compiler) {
-					// Travis CI API only gives the basic compiler (IE. gcc / clang)
-					// It doesn't give the detailed version
-					// For that, we rely on the environment variables passed in
-                    var myRegexp = /MY_CC=(.*?) /g;
-                    var match = myRegexp.exec(jobs[i].config.env);
-                    if (match !== null) {
-                        if (match[1] == compiler) {
-                            compilerCorrect = true;
-                        }
-                    }
-                }
+				Object.entries(queries).forEach(entry => {
+					var key = entry[0].toLowerCase()
+					var value = entry[1].toLowerCase()
 
-				if (osCorrect && compilerCorrect) {
+					// os is a special flower
+					// Travis CI API exposes it directly as a variable
+					if (key == 'os') {
+						allCorrect = allCorrect && jobs[i].config.os == value
+						return
+					}
+
+					if (!(key in envVars)) {
+						allCorrect = false
+						return
+					}
+
+					if (value != envVars[key]) {
+						allCorrect = false
+					}
+				})
+				
+				if (allCorrect) {
 					jobIndex = i;
 					break;
 				}
 			}
 
 			if (jobIndex == -1) {
-				CreateSVG(res, label, 'os/compiler build not found');
+				CreateSVG(res, label, 'query combo not found');
 				return;
 			}
 
