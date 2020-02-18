@@ -63,7 +63,7 @@ function isEmptyObject(obj) {
 	return !Object.keys(obj).length;
 }
 
-function GenerateSVGImage(res, username, repo, queries) {
+function GenerateTravisSVGImage(res, username, repo, queries) {
 	label = 'build'
 	if (queries.label) {
 		label = queries.label
@@ -168,11 +168,110 @@ function GenerateSVGImage(res, username, repo, queries) {
 
 
 			var status = jobs[jobIndex].state;
-			CreateSVG(res, label, status.replace(/ed$/, "ing"));
+			if (status == 'passed') {
+				status = 'passing';
+			} else if (status == 'failed') {
+				status = 'failing'
+			}
+			CreateSVG(res, label, status);
 		});
 	});
 }
 
+function GenerateAppveyorSVGImage(res, username, repo, queries) {
+	label = 'build'
+	if (queries.label) {
+		label = queries.label
+		delete queries.label
+	}
+
+	branch = 'master'
+	if (queries.branch) {
+		branch = queries.branch
+		delete queries.branch
+	}
+
+	// Look up the repo
+	// Default to the master branch if not specified
+	var options = {
+		url: 'https://ci.appveyor.com/api/projects/' + username + '/' + repo + '/branch/' + branch,
+        headers: {'Content-Type': 'application/json'}
+	};
+
+	console.info(options);
+
+	request(options, function (error, response, body) {
+		if (error || response.statusCode != 200) {
+			CreateSVG(res, label, 'repo not found');
+			return;
+		}
+
+		var jsonBody = JSON.parse(body);
+
+		// If they don't specify any queries, just return the status of the whole build
+		if (isEmptyObject(queries)) {
+			var status = jsonBody.build.status;
+			if (status == 'success') {
+				status = 'passing';
+			} else if (status == 'failed') {
+				status = 'failing'
+			}
+			CreateSVG(res, label, status);
+			return;
+		}
+
+		if(!jsonBody.hasOwnProperty('build')){
+			CreateSVG(res, label, 'not found');
+			return;
+		}
+
+		var jobIndex = -1;
+
+		// Try to find the query combo specified
+		for (var i = 0; i < jsonBody.build.jobs.length; i++) {
+			var allCorrect = true
+
+			var envVarList = jobs[i].config.env.split(' ')
+			var envVars = new Object()
+			for (var j = 0; j < envVarList.length; j++) {
+				var splitList = envVarList[j].split('=')
+				envVars[splitList[0].toLowerCase()] = splitList[1].toLowerCase()
+			}
+
+			Object.entries(queries).forEach(entry => {
+				var key = entry[0].toLowerCase()
+				var value = entry[1].toLowerCase()
+
+				if (!jsonBody.build.jobs[i].hasOwnProperty(key)) {
+					allCorrect = false;
+				}
+					
+				if (jsonBody.build.jobs[i][key] == value) {
+					allCorrect = false;
+				}
+			})
+			
+			if (allCorrect) {
+				jobIndex = i;
+				break;
+			}
+		}
+
+		if (jobIndex == -1) {
+			CreateSVG(res, label, 'query combo not found');
+			return;
+		}
 
 
-module.exports = GenerateSVGImage;
+		var status = jsonBody.build.jobs[jobIndex].status;
+		if (status == 'success') {
+			status = 'passing';
+		} else if (status == 'failed') {
+			status = 'failing'
+		}
+		CreateSVG(res, label, status);
+	});
+}
+
+exports.GenerateTravisSVGImage = GenerateTravisSVGImage;
+exports.GenerateAppveyorSVGImage = GenerateAppveyorSVGImage;
