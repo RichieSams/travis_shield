@@ -198,8 +198,6 @@ function GenerateAppveyorSVGImage(res, username, repo, queries) {
         headers: {'Content-Type': 'application/json'}
 	};
 
-	console.info(options);
-
 	request(options, function (error, response, body) {
 		if (error || response.statusCode != 200) {
 			CreateSVG(res, label, 'repo not found');
@@ -231,13 +229,6 @@ function GenerateAppveyorSVGImage(res, username, repo, queries) {
 		for (var i = 0; i < jsonBody.build.jobs.length; i++) {
 			var allCorrect = true
 
-			var envVarList = jobs[i].config.env.split(' ')
-			var envVars = new Object()
-			for (var j = 0; j < envVarList.length; j++) {
-				var splitList = envVarList[j].split('=')
-				envVars[splitList[0].toLowerCase()] = splitList[1].toLowerCase()
-			}
-
 			Object.entries(queries).forEach(entry => {
 				var key = entry[0].toLowerCase()
 				var value = entry[1].toLowerCase()
@@ -246,7 +237,7 @@ function GenerateAppveyorSVGImage(res, username, repo, queries) {
 					allCorrect = false;
 				}
 					
-				if (jsonBody.build.jobs[i][key] == value) {
+				if (jsonBody.build.jobs[i][key] != value) {
 					allCorrect = false;
 				}
 			})
